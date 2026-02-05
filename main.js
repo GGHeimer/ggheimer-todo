@@ -1,6 +1,6 @@
 // Import functions from the Firebase SDK
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.6.7/firebase-app.js';
-import { getFirestore, collection, getDocs, doc, setDoc, addDoc } from 'https://www.gstatic.com/firebasejs/9.6.7/firebase-firestore.js';
+import { getFirestore, collection, getDocs, doc, setDoc, addDoc, query, orderBy } from 'https://www.gstatic.com/firebasejs/9.6.7/firebase-firestore.js';
 
 // Your correct Firebase configuration
 const firebaseConfig = {
@@ -16,7 +16,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Function to fetch and display tasks from Firestore
+// Function to fetch and display tasks from Firestore, ordered by task_weight
 async function fetchAndDisplayTasks() {
     
     const backlogList = document.querySelector('.card.backlog ul');
@@ -24,8 +24,7 @@ async function fetchAndDisplayTasks() {
     const finishedList = document.querySelector('.card.finished ul');
     
     if (!backlogList || !ongoingList || !finishedList) {
-        // This function is intended to run on index.html, so if the elements are not found, we just return.
-        return;
+        return; // Exit if the lists aren't on the page
     }
 
     backlogList.innerHTML = '';
@@ -33,7 +32,10 @@ async function fetchAndDisplayTasks() {
     finishedList.innerHTML = '';
 
     try {
-        const querySnapshot = await getDocs(collection(db, "tasks"));
+        // Create a query to get tasks ordered by weight
+        const tasksRef = collection(db, "tasks");
+        const q = query(tasksRef, orderBy("task_weight"));
+        const querySnapshot = await getDocs(q);
 
         if (querySnapshot.empty) {
             backlogList.innerHTML = '<li>No tasks in database!</li>';
@@ -64,13 +66,23 @@ function createTaskListItem(id, task) {
     const li = document.createElement('li');
     li.className = 'list-group-item';
     li.setAttribute('data-id', id);
-    li.innerHTML = `<h6 class="mb-1">${task.task_desc || 'No Description'}</h6>`;
+    li.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center">
+            <h6 class="mb-1">${task.task_desc || 'No Description'}</h6><div style="min-width: 2rem; min-height: 2rem; text-align: center;">
+            <a href="#"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil-square" viewBox="0 0 16 16">
+  <path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/>
+  <path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5z"/>
+</svg></a><a href="./index.html"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash-fill" viewBox="0 0 16 16">
+  <path d="M2.5 1a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1H3v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4h.5a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H10a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1zm3 4a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 .5-.5M8 5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7A.5.5 0 0 1 8 5m3 .5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 1 0"/>
+</svg></a></div>
+        </div>
+    `;
     return li;
 }
 
 // Function to create a new task in Firestore
 async function createTask(event){
-    event.preventDefault(); // Prevent default form submission
+    event.preventDefault();
 
     let taskId = document.getElementById('taskId').value;
     let taskDesc = document.getElementById('taskDesc').value;
@@ -89,14 +101,12 @@ async function createTask(event){
         task_cost: parseFloat(taskCost) || 0,
         task_due_date: taskDueDate,
         task_weight: parseInt(taskWeight) || 0,
-        task_id: taskId,
-        task_status: 'b'
-        
+        task_status: 'b' // 'b' for backlog
     };
 
     try {
         const docRef = await addDoc(collection(db, "tasks"), newTask);
-        console.log("Document written with ID: ", docRef.id)
+        console.log("Document written with auto-generated ID: ", docRef.id);
         window.location.href = "./index.html";
     } catch (error) {
         console.error("Error adding document: ", error);
@@ -104,10 +114,10 @@ async function createTask(event){
     }
 }
 
-// Run fetchAndDisplayTasks when the page content is loaded (for index.html)
+// --- Event Listeners ---
+
 document.addEventListener('DOMContentLoaded', fetchAndDisplayTasks);
 
-// Add event listener for the form submission (for createTask.html)
 const createTaskForm = document.getElementById('createTaskForm');
 if (createTaskForm) {
     createTaskForm.addEventListener('submit', createTask);
