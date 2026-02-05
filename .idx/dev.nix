@@ -1,45 +1,53 @@
-# To learn more about how to use Nix to configure your environment
-# see: https://developers.google.com/idx/guides/customize-idx-env
 { pkgs, ... }: {
-  # Which nixpkgs channel to use.
-  channel = "stable-23.11"; # or "unstable"
-  # Use https://search.nixos.org/packages to find packages
+  # Let Project IDX know you're running a web server.
+  # services.http.port = 8080;
+
+  # The following are examples of how you can use Project IDX to customize your
+  # development environment.
+
+  # The following configures a web server to be proxied by IDX.
+  # previews = [
+  #   {
+  #     # The port your web server will listen on.
+  #     port = 8080;
+  #     # How to start your web server.
+  #     command = ["npm" "run" "dev"];
+  #   }
+  # ];
+
+  # These are the channels where you can install packages from.
+  channels.nixpkgs = "unstable";
+
+  # These are the packages that will be available in your environment.
   packages = [
     pkgs.nodejs_20
-    pkgs.python3
   ];
-  # Sets environment variables in the workspace
-  env = {};
-  idx = {
-    # Search for the extensions you want on https://open-vsx.org/ and use "publisher.id"
-    extensions = [
-      # "vscodevim.vim"
-      "google.gemini-cli-vscode-ide-companion"
-    ];
-    # Enable previews and customize configuration
-    previews = {
-      enable = true;
-      previews = {
-        web = {
-          command = ["python3" "-m" "http.server" "$PORT" "--bind" "0.0.0.0"];
-          manager = "web";
-        };
-      };
-    };
-    # Workspace lifecycle hooks
-    workspace = {
-      # Runs when a workspace is first created
-      onCreate = {
-        # Example: install JS dependencies from NPM
-        # npm-install = "npm install";
-        # Open editors for the following files by default, if they exist:
-        default.openFiles = [ "style.css" "main.js" "index.html" ];
-      };
-      # Runs when the workspace is (re)started
-      onStart = {
-        # Example: start a background task to watch and re-build backend code
-        # watch-backend = "npm run watch-backend";
-      };
-    };
-  };
+
+  # Use this to run a command when your environment is created.
+  # Recommended for tasks that only need to run once, such as database migrations.
+  # onCreate = {
+  #   # Example: install JS dependencies from NPM
+  #   npm-install = "npm install";
+  # };
+
+  # Use this to run a command when your environment is started.
+  # Recommended for tasks that need to run continuously, such as a file watcher.
+  # onStart = {
+  #   # Example: start a background task to watch and re-build backend code
+  #   watch-backend = "npm run watch-backend";
+  # };
+
+  # The following are some more examples of what you can do with your
+  # Project IDX environment.
+  #
+  # # Open editors for the following files by default, if they exist
+  # default.openFiles = [ "src/index.js" ];
+  #
+  # # Set environment variables
+  # env = {
+  #   API_KEY = "your_api_key";
+  # };
+  #
+  # # Forward a port
+  # ports."8888".origin = "localhost:8888";
 }
