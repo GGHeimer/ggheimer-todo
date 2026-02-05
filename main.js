@@ -1,6 +1,6 @@
 // Import functions from the Firebase SDK
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.6.7/firebase-app.js';
-import { getFirestore, collection, getDocs, doc, setDoc, addDoc, query, orderBy } from 'https://www.gstatic.com/firebasejs/9.6.7/firebase-firestore.js';
+import { getFirestore, collection, getDocs, doc, getDoc, setDoc, addDoc, query, orderBy, updateDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/9.6.7/firebase-firestore.js';
 
 // Your correct Firebase configuration
 const firebaseConfig = {
@@ -16,23 +16,19 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Function to fetch and display tasks from Firestore, ordered by task_weight
+// --- Main Page Functions ---
 async function fetchAndDisplayTasks() {
-    
     const backlogList = document.querySelector('.card.backlog ul');
     const ongoingList = document.querySelector('.card.ongoing ul');
     const finishedList = document.querySelector('.card.finished ul');
-    
-    if (!backlogList || !ongoingList || !finishedList) {
-        return; // Exit if the lists aren't on the page
-    }
+
+    if (!backlogList || !ongoingList || !finishedList) return;
 
     backlogList.innerHTML = '';
     ongoingList.innerHTML = '';
     finishedList.innerHTML = '';
 
     try {
-        // Create a query to get tasks ordered by weight
         const tasksRef = collection(db, "tasks");
         const q = query(tasksRef, orderBy("task_weight"));
         const querySnapshot = await getDocs(q);
@@ -45,80 +41,180 @@ async function fetchAndDisplayTasks() {
         querySnapshot.forEach((doc) => {
             const task = doc.data();
             const taskElement = createTaskListItem(doc.id, task);
-
             if (task.task_status === 'o') {
                 ongoingList.appendChild(taskElement);
             } else if (task.task_status === 'f') {
                 finishedList.appendChild(taskElement);
-            } else { // Default to backlog
+            } else {
                 backlogList.appendChild(taskElement);
             }
         });
-
     } catch (error) {
         console.error("Error fetching from Firestore:", error);
-        backlogList.innerHTML = '<li>Error loading tasks. See console.</li>';
     }
 }
 
-// Function to create an LI element for a task
 function createTaskListItem(id, task) {
     const li = document.createElement('li');
-    li.className = 'list-group-item';
+    li.className = 'list-group-item list-group-item-action';
     li.setAttribute('data-id', id);
+
     li.innerHTML = `
         <div class="d-flex justify-content-between align-items-center">
-            <h6 class="mb-1">${task.task_desc || 'No Description'}</h6><div style="min-width: 2rem; min-height: 2rem; text-align: center;">
-            <a href="#"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil-square" viewBox="0 0 16 16">
-  <path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/>
-  <path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5z"/>
-</svg></a><a href="./index.html"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash-fill" viewBox="0 0 16 16">
-  <path d="M2.5 1a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1H3v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4h.5a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H10a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1zm3 4a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 .5-.5M8 5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7A.5.5 0 0 1 8 5m3 .5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 1 0"/>
-</svg></a></div>
+            <span class="task-desc">${task.task_desc || 'No Description'}</span>
+            <div class="task-actions" style="min-width:3rem;">
+                <a href="#" class="edit-link"><i class="bi bi-pencil-square text-light"></i></a>
+                <a href="#" class="delete-link ms-2"><i class="bi bi-trash text-danger"></i></a>
+            </div>
         </div>
     `;
+
+    if (task.task_cost > 1000){
+        li.classList.add('bg-warning');
+    
+    }
     return li;
 }
 
-// Function to create a new task in Firestore
-async function createTask(event){
+async function deleteTask(docId) {
+    if (!docId) {
+        console.error("Delete failed: No document ID provided.");
+        return;
+    }
+    try {
+        await deleteDoc(doc(db, "tasks", docId));
+        const taskItem = document.querySelector(`li[data-id="${docId}"]`);
+        if (taskItem) taskItem.remove();
+    } catch (error) {
+        console.error("Error deleting document: ", error);
+        alert("Failed to delete task. See console for details.");
+    }
+}
+
+async function createTask(event) {
     event.preventDefault();
-
-    let taskId = document.getElementById('taskId').value;
-    let taskDesc = document.getElementById('taskDesc').value;
-    let taskCost = document.getElementById('taskCost').value;
-    let taskDueDate = document.getElementById('taskDueDate').value;
-    let taskWeight = document.getElementById('taskWeight').value;
-
+    const taskId = document.getElementById('taskId').value;
     if (!taskId) {
         alert("Task ID is required.");
         return;
     }
 
+    const costString = document.getElementById('taskCost').value.replace(',', '.');
+
     const newTask = {
-        task_id: parseInt(taskId),
-        task_desc: taskDesc,
-        task_cost: parseFloat(taskCost) || 0,
-        task_due_date: taskDueDate,
-        task_weight: parseInt(taskWeight) || 0,
-        task_status: 'b' // 'b' for backlog
+        task_id: taskId,
+        task_desc: document.getElementById('taskDesc').value,
+        task_cost: parseFloat(costString) || 0,
+        task_due_date: document.getElementById('taskDueDate').value,
+        task_weight: parseInt(document.getElementById('taskWeight').value) || 0,
+        task_status: document.querySelector('input[name="taskStatus"]:checked').value
     };
 
     try {
-        const docRef = await addDoc(collection(db, "tasks"), newTask);
-        console.log("Document written with auto-generated ID: ", docRef.id);
+        // Use setDoc to create a document with a specific ID
+        const docRef = doc(db, "tasks", taskId);
+        await setDoc(docRef, newTask);
         window.location.href = "./index.html";
     } catch (error) {
         console.error("Error adding document: ", error);
-        alert("Error creating task. See console for details.");
+        alert("Failed to create task. See console for details.");
+    }
+}
+
+
+async function populateIndexUpdateForm() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const docId = urlParams.get('id');
+    if (!docId) {
+        alert("Could not find the task to update.");
+        window.location.href = "./index.html";
+        return;
+    }
+
+    const updateDiv = document.createElement('div');
+    updateDiv.className = 'form';
+    updateDiv.setAttribute('data-id', id);
+
+    updateDiv.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center">
+            <span class="task-id">Task ID: ${task.task_id || 'No Description'}</span>
+        </div>
+    `;
+
+    try {
+        const docRef = doc(db, "tasks", docId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            const task = docSnap.data();
+            document.getElementById('taskDesc').value = task.task_desc || '';
+            document.getElementById('taskCost').value = task.task_cost || '';
+            document.getElementById('taskDueDate').value = task.task_due_date || '';
+            document.querySelector(`input[name="taskStatus"][value="${task.task_status}"]`).checked = true;
+        } else {
+            alert("Task not found.");
+            window.location.href = "./index.html";
+        }
+    } catch (error) {
+        console.error("Error getting document:", error);
+    }
+}
+
+async function updateTask(event) {
+    event.preventDefault();
+    const urlParams = new URLSearchParams(window.location.search);
+    const docId = urlParams.get('id');
+    if (!docId) {
+        alert("Error: No task ID provided for update.");
+        return;
+    }
+    const costString = document.getElementById('taskCost').value.replace(',', '.');
+    const updatedTask = {
+        task_desc: document.getElementById('taskDesc').value,
+        task_cost: parseFloat(costString) || 0,
+        task_due_date: document.getElementById('taskDueDate').value,
+        task_status: document.querySelector('input[name="taskStatus"]:checked').value
+    };
+    try {
+        await updateDoc(doc(db, "tasks", docId), updatedTask);
+        window.location.href = "./index.html";
+    } catch (error) {
+        console.error("Error updating document: ", error);
+        alert("Failed to update task. See console for details.");
     }
 }
 
 // --- Event Listeners ---
+document.addEventListener('DOMContentLoaded', () => {
+    const pagePath = window.location.pathname;
 
-document.addEventListener('DOMContentLoaded', fetchAndDisplayTasks);
+    // Router logic
+    if (pagePath.includes('updateTask.html')) {
+        populateUpdateForm();
+        document.getElementById('updateTaskForm').addEventListener('submit', updateTask);
+    } else if (pagePath.includes('createTask.html')) {
+        document.getElementById('createTaskForm').addEventListener('submit', createTask);
+    } else {
+        fetchAndDisplayTasks();
+        const mainElement = document.querySelector('main');
+        if (mainElement) {
+            mainElement.addEventListener('click', (event) => {
+                const editIcon = event.target.closest('.bi-pencil-square');
+                const deleteIcon = event.target.closest('.bi-trash');
 
-const createTaskForm = document.getElementById('createTaskForm');
-if (createTaskForm) {
-    createTaskForm.addEventListener('submit', createTask);
-}
+                if (editIcon) {
+                    event.preventDefault();
+                    const taskItem = editIcon.closest('li[data-id]');
+                    if (taskItem) {
+                        window.location.href = `./updateTask.html?id=${taskItem.dataset.id}`;
+                    }
+                } else if (deleteIcon) {
+                    event.preventDefault();
+                    const taskItem = deleteIcon.closest('li[data-id]');
+                    if (taskItem && confirm("Are you sure you want to delete this task?")) {
+                        deleteTask(taskItem.dataset.id);
+                    }
+                }
+            });
+        }
+    }
+});

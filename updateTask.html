@@ -28,25 +28,24 @@
     </aside>
     <main>
       <div class="text-center">
-        <h1>CREATE TASK</h1>
+        <h1>UPDATE TASK</h1>
       </div>
       <div class="form">
-        <form id="createTaskForm">
+        <form id="updateTaskForm">
           <div class="mb-3">
-            <label for="taskId" class="form-label">ID</label>
-            <input type="text" class="form-control" id="taskId" placeholder="Task ID" required>
+            <label for="taskId" class="form-label">Task ID</label>
           </div>
           <div>
             <div class="mb-3">
               <label for="taskDesc" class="form-label">Task</label>
-              <input type="text" class="form-control" id="taskDesc" placeholder="Task Description" required>
+              <textarea type="text" class="form-control" id="taskDesc" placeholder="Task Description" required></textarea>
             </div>
             <div class="input-group mb-3 form-label">
               <label for="cost">Task Cost</label>
             </div>
             <div class="input-group mb-3">
               <span class="input-group-text">$</span>
-              <input type="text" class="form-control" id="taskCost" aria-label="Amount (to the nearest dollar)">
+              <input type="text" class="form-control" id="taskCost" aria-label="Valor em R$">
               <span class="input-group-text"></span>
             </div>
           </div>
@@ -55,13 +54,9 @@
             <input type="date" class="form-control" id="taskDueDate" placeholder="Task Due Date" required>
           </div>
           <div class="mb-3">
-            <label for="taskWeight" class="input-group form-label">Order List</label>
-            <input type="number" class="form-control" id="taskWeight" placeholder="Task Weight">
-          </div>
-          <div class="mb-3">
             <label class="form-label">Status</label>
             <div class="form-check">
-              <input class="form-check-input" type="radio" name="taskStatus" id="statusBacklog" value="b" checked>
+              <input class="form-check-input" type="radio" name="taskStatus" id="statusBacklog" value="b">
               <label class="form-check-label" for="statusBacklog">
                 Backlog
               </label>
