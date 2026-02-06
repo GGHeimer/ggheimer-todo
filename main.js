@@ -157,7 +157,7 @@ async function showUpdateForm(docId) {
                     <label for="atualizaDataLimTarefa" class="form-label">Data Limite</label>
                     <input type="date" class="form-control" id="atualizaDataLimTarefa" value="${tarefa.dataLimTar || ''}" required>
                 </div>
-                    <button type="submit" class="btn btn-primary">Atualizar</button>
+                    <button type="submit" class="btn btn-primary" id="dynamicUpdateTarefaForm">Atualizar</button>
                     <button type="button" class="btn btn-secondary" id="cancelaNovaTarefa">Cancelar</button>
                 </div>
             </form>
@@ -185,8 +185,6 @@ async function showCreateForm() {
     try {
         const existingCreateForm = document.getElementById('create-form-container');
         if (existingCreateForm) existingCreateForm.remove();
-        const existingUpdateForm = document.getElementById('update-form-container');
-        if (existingUpdateForm) existingUpdateForm.remove();
 
         const formContainer = document.createElement('div');
         formContainer.id = 'create-form-container';
@@ -271,19 +269,20 @@ async function handleDynamicUpdate(docId) {
         return;
     }
 
-    const costString = document.getElementById('criaCustoTarefa').value.replace(',', '.');
-    const tarefaAtualizada = {
-        nomeTar: document.getElementById('criaNomeTarefa').value,
-        custoTar: parseFloat(costString) || 0,
-        dataLimTar: document.getElementById('criaDataLimTarefa').value
-    };
-
-    try {
-        await updateDoc(doc(db, "tarefas", docId), tarefaAtualizada);
+        const formContainer = document.getElementById('update-form-container');
+        const costString = document.getElementById('atualizaCustoTarefa').value.replace(',', '.');
+        const tarefaAtualizada = {
+            nomeTar: document.getElementById('atualizaNomeTarefa').value,
+            custoTar: parseFloat(costString) || 0,
+            dataLimTar: document.getElementById('atualizaDataLimTarefa').value
+        };
         
-        document.getElementById('update-form-container').remove();
+        try {
+            await updateDoc(doc(db, "tarefas", docId), tarefaAtualizada);
 
-        await fetchAndDisplayTarefas();
+            document.getElementById('update-form-container').remove();
+
+            await fetchAndDisplayTarefas();
 
     } catch (error) {
         console.error("Error updating document: ", error);
