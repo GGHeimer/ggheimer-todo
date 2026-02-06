@@ -1,8 +1,8 @@
-// Import functions from the Firebase SDK
+// Importa funções do SDK do Firebase
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.6.7/firebase-app.js';
-import { getFirestore, collection, getDocs, doc, getDoc, setDoc, addDoc, query, orderBy, updateDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/9.6.7/firebase-firestore.js';
+import { getFirestore, collection, getDocs, doc, getDoc, setDoc, addDoc, query, orderBy, updateDoc, deleteDoc, limit, where, writeBatch } from 'https://www.gstatic.com/firebasejs/9.6.7/firebase-firestore.js';
 
-// Your correct Firebase configuration
+// Configuração do banco de dados
 const firebaseConfig = {
     apiKey: "AIzaSyAgen2CqFQlI2Vw3Cbd1Ah6T-zzB_BXQs8",
     authDomain: "ggheimer-todo-3ee5e.firebaseapp.com",
@@ -12,209 +12,418 @@ const firebaseConfig = {
     appId: "1:674639923713:web:d4e7102f416667f1f1ce00"
 };
 
-// Connect to Firebase
+// Conexão com o banco de dados do Firestore
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// --- Main Page Functions ---
-async function fetchAndDisplayTasks() {
-    const backlogList = document.querySelector('.card.backlog ul');
-    const ongoingList = document.querySelector('.card.ongoing ul');
-    const finishedList = document.querySelector('.card.finished ul');
+// Funções principais
+async function fetchAndDisplayTarefas() {
+    const listaTarefas = document.querySelector('.card.lista-tarefas ul');
+    const totalCustoTarefas = document.querySelector('.card');
 
-    if (!backlogList || !ongoingList || !finishedList) return;
+    if (!listaTarefas) return;
 
-    backlogList.innerHTML = '';
-    ongoingList.innerHTML = '';
-    finishedList.innerHTML = '';
+    listaTarefas.innerHTML = '';
 
     try {
-        const tasksRef = collection(db, "tasks");
-        const q = query(tasksRef, orderBy("task_weight"));
+        const tarefasRef = collection(db, "tarefas");
+        const q = query(tarefasRef, orderBy("ordemTar"));
         const querySnapshot = await getDocs(q);
 
         if (querySnapshot.empty) {
-            backlogList.innerHTML = '<li>No tasks in database!</li>';
+            listaTarefas.innerHTML = '<li>Sem tarefas na base de dados!</li>';
             return;
         }
 
+        let custoTotal = 0;
         querySnapshot.forEach((doc) => {
-            const task = doc.data();
-            const taskElement = createTaskListItem(doc.id, task);
-            if (task.task_status === 'o') {
-                ongoingList.appendChild(taskElement);
-            } else if (task.task_status === 'f') {
-                finishedList.appendChild(taskElement);
-            } else {
-                backlogList.appendChild(taskElement);
-            }
-        });
+            const tarefa = doc.data();
+            custoTotal += tarefa.custoTar || 0;
+            const itemTarefa = criaItemTarefa(doc.id, tarefa);
+                listaTarefas.appendChild(itemTarefa);
+            });
+
+        const divTotalAntiga = document.querySelector('.total-tarefas-div');
+        if (divTotalAntiga) {divTotalAntiga.remove()};
+
+        const divCustoTotal = document.createElement('div');
+        divCustoTotal.className = 'total-tarefas-div mt-2 me-3 text-end fw-bold';
+        divCustoTotal.style.height = '2.5em';
+        divCustoTotal.innerHTML = `
+                <span class="total-custo-tarefas">Custo Total: ${custoTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+            `;
+        totalCustoTarefas.appendChild(divCustoTotal);
+
     } catch (error) {
-        console.error("Error fetching from Firestore:", error);
+        console.error("Erro ao buscar tarefas do Firestore:", error);
     }
 }
 
-function createTaskListItem(id, task) {
+function criaItemTarefa(id, tarefa) {
     const li = document.createElement('li');
     li.className = 'list-group-item list-group-item-action';
     li.setAttribute('data-id', id);
 
     li.innerHTML = `
         <div class="d-flex justify-content-between align-items-center">
-            <span class="task-desc">${task.task_desc || 'No Description'}</span>
-            <div class="task-actions" style="min-width:3rem;">
+            <div class="order-arrows" hidden><i class="bi bi-chevron-up me-2 up-arrow"></i><i class="bi bi-chevron-down down-arrow"></i></div>
+            <span class="tarefa-desc">${tarefa.nomeTar || 'Sem descrição'}</span>
+            <div class="tarefa-actions" style="min-width:3rem;">
                 <a href="#" class="edit-link"><i class="bi bi-pencil-square text-light"></i></a>
                 <a href="#" class="delete-link ms-2"><i class="bi bi-trash text-danger"></i></a>
             </div>
-        </div>
+        </div><hr>
     `;
 
-    if (task.task_cost > 1000){
+    li.addEventListener('mouseover', () => {
+
+        const arrows = li.querySelector('.order-arrows');
+        li.style.height = '45px';
+        li.style.color = 'black';
+        li.classList.add('bg-body-secondary');
+
+        if (arrows) {
+            arrows.hidden = false;
+        }
+    });
+
+    // Esconde as setas quando o mouse sai
+    li.addEventListener('mouseout', () => {
+        const arrows = li.querySelector('.order-arrows');
+        li.style.height = '';
+        li.style.color = '';
+        li.classList.remove('bg-body-secondary');
+
+        if (arrows) {
+            arrows.hidden = true;
+        }
+    });
+
+    if (tarefa.custoTar > 1000) {
         li.classList.add('bg-warning');
-    
     }
     return li;
 }
 
-async function deleteTask(docId) {
+async function deletarTarefa(docId) {
     if (!docId) {
-        console.error("Delete failed: No document ID provided.");
+        console.error("Falha ao deletar. Sem ID do documento.");
         return;
     }
     try {
-        await deleteDoc(doc(db, "tasks", docId));
-        const taskItem = document.querySelector(`li[data-id="${docId}"]`);
-        if (taskItem) taskItem.remove();
+        await deleteDoc(doc(db, "tarefas", docId));
+        await fetchAndDisplayTarefas();
     } catch (error) {
-        console.error("Error deleting document: ", error);
-        alert("Failed to delete task. See console for details.");
+        console.error("Erro ao deletar documento: ", error);
+        alert("Erro ao deletar tarefa. Veja console para detalhes.");
     }
 }
 
-async function createTask(event) {
-    event.preventDefault();
-    const taskId = document.getElementById('taskId').value;
-    if (!taskId) {
-        alert("Task ID is required.");
-        return;
-    }
-
-    const costString = document.getElementById('taskCost').value.replace(',', '.');
-
-    const newTask = {
-        task_id: taskId,
-        task_desc: document.getElementById('taskDesc').value,
-        task_cost: parseFloat(costString) || 0,
-        task_due_date: document.getElementById('taskDueDate').value,
-        task_weight: parseInt(document.getElementById('taskWeight').value) || 0,
-        task_status: document.querySelector('input[name="taskStatus"]:checked').value
-    };
-
+async function showUpdateForm(docId) {
     try {
-        // Use setDoc to create a document with a specific ID
-        const docRef = doc(db, "tasks", taskId);
-        await setDoc(docRef, newTask);
-        window.location.href = "./index.html";
-    } catch (error) {
-        console.error("Error adding document: ", error);
-        alert("Failed to create task. See console for details.");
-    }
-}
-
-
-async function populateIndexUpdateForm() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const docId = urlParams.get('id');
-    if (!docId) {
-        alert("Could not find the task to update.");
-        window.location.href = "./index.html";
-        return;
-    }
-
-    const updateDiv = document.createElement('div');
-    updateDiv.className = 'form';
-    updateDiv.setAttribute('data-id', id);
-
-    updateDiv.innerHTML = `
-        <div class="d-flex justify-content-between align-items-center">
-            <span class="task-id">Task ID: ${task.task_id || 'No Description'}</span>
-        </div>
-    `;
-
-    try {
-        const docRef = doc(db, "tasks", docId);
+        const docRef = doc(db, "tarefas", docId);
         const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-            const task = docSnap.data();
-            document.getElementById('taskDesc').value = task.task_desc || '';
-            document.getElementById('taskCost').value = task.task_cost || '';
-            document.getElementById('taskDueDate').value = task.task_due_date || '';
-            document.querySelector(`input[name="taskStatus"][value="${task.task_status}"]`).checked = true;
-        } else {
-            alert("Task not found.");
-            window.location.href = "./index.html";
+
+        if (!docSnap.exists()) {
+            alert("tarefa not found.");
+            return;
         }
+        const tarefa = docSnap.data();
+
+        const existingForm = document.getElementById('update-form-container');
+        if (existingForm) {
+            existingForm.remove();
+        }
+
+        const formContainer = document.createElement('div');
+        formContainer.id = 'update-form-container';
+        formContainer.className = 'form m-5 p-4 border rounded';
+
+        formContainer.innerHTML = `
+            <h3>Atualizar Tarefa</h3>
+            <form id="dynamicUpdateTarefaForm">
+                <div class="mb-3">
+                    <label for="atualizaNomeTarefa" class="form-label">Tarefa</label>
+                    <textarea type="text" class="form-control" id="atualizaNomeTarefa" required>${tarefa.nomeTar || ''}</textarea>
+                </div>
+                <div class="mb-3">
+                    <label for="atualizaCustoTarefa" class="form-label">Custo da Tarefa</label>
+                    <div class="input-group">
+                        <span class="input-group-text">$</span>
+                        <input type="text" class="form-control" id="atualizaCustoTarefa" value="${tarefa.custoTar || ''}" required>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="atualizaDataLimTarefa" class="form-label">Data Limite</label>
+                    <input type="date" class="form-control" id="atualizaDataLimTarefa" value="${tarefa.dataLimTar || ''}" required>
+                </div>
+                    <button type="submit" class="btn btn-primary">Atualizar</button>
+                    <button type="button" class="btn btn-secondary" id="cancelaNovaTarefa">Cancelar</button>
+                </div>
+            </form>
+        `;
+
+        const mainElement = document.querySelector('.cards');
+        mainElement.appendChild(formContainer);
+
+        document.getElementById('dynamicUpdateTarefaForm').addEventListener('submit', (event) => {
+            event.preventDefault();
+            handleDynamicUpdate(docId);
+        });
+
+        document.getElementById('cancelaNovaTarefa').addEventListener('click', () => {
+            formContainer.remove();
+        });
+
     } catch (error) {
-        console.error("Error getting document:", error);
+        console.error("Error showing update form:", error);
+        alert("Could not display update form.");
     }
 }
 
-async function updateTask(event) {
-    event.preventDefault();
-    const urlParams = new URLSearchParams(window.location.search);
-    const docId = urlParams.get('id');
+async function showCreateForm() {
+    try {
+        const existingCreateForm = document.getElementById('create-form-container');
+        if (existingCreateForm) existingCreateForm.remove();
+        const existingUpdateForm = document.getElementById('update-form-container');
+        if (existingUpdateForm) existingUpdateForm.remove();
+
+        const formContainer = document.createElement('div');
+        formContainer.id = 'create-form-container';
+        formContainer.className = 'form p-2 border rounded';
+
+        formContainer.innerHTML = `
+            <h3>Incluir Tarefa</h3>
+            <form id="dynamicCreateForm">
+                <div class="mb-3">
+                    <label for="criaNomeTarefa" class="form-label">Tarefa</label>
+                    <textarea type="text" class="form-control" id="criaNomeTarefa" required></textarea>
+                </div>
+                <div class="mb-3">
+                    <label for="criaCustoTarefa" class="form-label">Custo da Tarefa</label>
+                    <div class="input-group">
+                        <span class="input-group-text">$</span>
+                        <input type="text" class="form-control" id="criaCustoTarefa"}" required>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="criaDataLimTarefa" class="form-label">Data Limite</label>
+                    <input type="date" class="form-control" id="criaDataLimTarefa"}" required>
+                </div>
+                    <button type="submit" class="btn btn-primary">Incluir</button>
+                    <button type="button" class="btn btn-secondary" id="cancelaNovaTarefa">Cancelar</button>
+                </div>
+            </form>
+        `;
+
+        const mainElement = document.querySelector('.cards');
+        mainElement.appendChild(formContainer);
+
+        document.getElementById('dynamicCreateForm').addEventListener('submit', (event) => {
+            event.preventDefault();
+            handleDynamicCreate();
+        });
+
+        document.getElementById('cancelaNovaTarefa').addEventListener('click', () => {
+            formContainer.remove();
+        });
+
+    } catch (error) {
+        console.error("Error showing update form:", error);
+        alert("Could not display create form.");
+    }
+}
+
+async function handleDynamicCreate() {
+    try {
+    const tarefasRef = collection(db, "tarefas");
+        const q = query(tarefasRef, orderBy("ordemTar", "desc"), limit(1));
+        const querySnapshot = await getDocs(q);
+        let nextOrder = 1;
+        if (!querySnapshot.empty) {
+            const lastTask = querySnapshot.docs[0].data();
+            nextOrder = lastTask.ordemTar + 1;
+        }
+
+        const custoString = document.getElementById('criaCustoTarefa').value.replace(',', '.');
+        const novaTarefa = {
+            nomeTar: document.getElementById('criaNomeTarefa').value,
+            custoTar: parseFloat(custoString),
+            dataLimTar: document.getElementById('criaDataLimTarefa').value,
+            ordemTar: nextOrder
+        };
+    
+        await addDoc(collection(db, "tarefas"), novaTarefa);
+        
+        document.getElementById('create-form-container').remove();
+
+        await fetchAndDisplayTarefas();
+
+    } catch (error) {
+        console.error("Erro ao criar tarefa: ", error);
+        alert("Falha ao criar tarefa. Veja o console para detalhes.");
+    }
+}
+
+async function handleDynamicUpdate(docId) {
     if (!docId) {
-        alert("Error: No task ID provided for update.");
+        alert("Erro: ID não fornecido para atualização.");
         return;
     }
-    const costString = document.getElementById('taskCost').value.replace(',', '.');
-    const updatedTask = {
-        task_desc: document.getElementById('taskDesc').value,
-        task_cost: parseFloat(costString) || 0,
-        task_due_date: document.getElementById('taskDueDate').value,
-        task_status: document.querySelector('input[name="taskStatus"]:checked').value
+
+    const costString = document.getElementById('criaCustoTarefa').value.replace(',', '.');
+    const tarefaAtualizada = {
+        nomeTar: document.getElementById('criaNomeTarefa').value,
+        custoTar: parseFloat(costString) || 0,
+        dataLimTar: document.getElementById('criaDataLimTarefa').value
     };
+
     try {
-        await updateDoc(doc(db, "tasks", docId), updatedTask);
-        window.location.href = "./index.html";
+        await updateDoc(doc(db, "tarefas", docId), tarefaAtualizada);
+        
+        document.getElementById('update-form-container').remove();
+
+        await fetchAndDisplayTarefas();
+
     } catch (error) {
         console.error("Error updating document: ", error);
-        alert("Failed to update task. See console for details.");
+        alert("Failed to update tarefa. See console for details.");
+    }
+}
+
+async function sobeTarefa(docId) {
+    if (!docId) return;
+
+    try {
+        const refTarefa = doc(db, "tarefas", docId);
+        const snapTarefa = await getDoc(refTarefa);
+
+        if (!snapTarefa.exists()) {
+            console.error("Tarefa não encontrada!");
+            return;
+        }
+
+        const dadosTarefaAtual = snapTarefa.data();
+        const ordemAtual = dadosTarefaAtual.ordemTar;
+
+        // Encontra a tarefa com a ordem imediatamente anterior
+        const q = query(
+            collection(db, "tarefas"),
+            where("ordemTar", "<", ordemAtual),
+            orderBy("ordemTar", "desc"),
+            limit(1)
+        );
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+            return; // Já está no topo
+        }
+
+        const previousSnapTarefa = querySnapshot.docs[0];
+        const previousRefTarefa = doc(db, "tarefas", previousSnapTarefa.id);
+        
+        // Troca a ordem das duas tarefas
+        const batch = writeBatch(db);
+        batch.update(refTarefa, { ordemTar: previousSnapTarefa.data().ordemTar });
+        batch.update(previousRefTarefa, { ordemTar: ordemAtual });
+        await batch.commit();
+
+        await fetchAndDisplayTarefas();
+
+    } catch (error) {
+        console.error("Erro ao subir tarefa: ", error);
+    }
+}
+
+async function desceTarefa(docId) {
+    if (!docId) return;
+
+    try {
+        const refTarefa = doc(db, "tarefas", docId);
+        const snapTarefa = await getDoc(refTarefa);
+
+        if (!snapTarefa.exists()) {
+            console.error("Tarefa não encontrada!");
+            return;
+        }
+
+        const dadosTarefaAtual = snapTarefa.data();
+        const ordemAtual = dadosTarefaAtual.ordemTar;
+
+        // Encontra a tarefa com a ordem imediatamente posterior
+        const q = query(
+            collection(db, "tarefas"),
+            where("ordemTar", ">", ordemAtual),
+            orderBy("ordemTar", "asc"),
+            limit(1)
+        );
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+            return; // Já está na base
+        }
+
+        const nextsnapTarefa = querySnapshot.docs[0];
+        const nextrefTarefa = doc(db, "tarefas", nextsnapTarefa.id);
+
+        // Troca a ordem das duas tarefas
+        const batch = writeBatch(db);
+        batch.update(refTarefa, { ordemTar: nextsnapTarefa.data().ordemTar });
+        batch.update(nextrefTarefa, { ordemTar: ordemAtual });
+        await batch.commit();
+
+        await fetchAndDisplayTarefas();
+
+    } catch (error) {
+        console.error("Erro ao descer tarefa: ", error);
     }
 }
 
 // --- Event Listeners ---
 document.addEventListener('DOMContentLoaded', () => {
-    const pagePath = window.location.pathname;
 
-    // Router logic
-    if (pagePath.includes('updateTask.html')) {
-        populateUpdateForm();
-        document.getElementById('updateTaskForm').addEventListener('submit', updateTask);
-    } else if (pagePath.includes('createTask.html')) {
-        document.getElementById('createTaskForm').addEventListener('submit', createTask);
-    } else {
-        fetchAndDisplayTasks();
+        fetchAndDisplayTarefas();
+
+        const createTaskBtn = document.getElementById('show-create-form-btn');
+        if (createTaskBtn) {
+            createTaskBtn.addEventListener('click', (event) => {
+                event.preventDefault();
+                showCreateForm();
+        });
+}
         const mainElement = document.querySelector('main');
         if (mainElement) {
             mainElement.addEventListener('click', (event) => {
-                const editIcon = event.target.closest('.bi-pencil-square');
-                const deleteIcon = event.target.closest('.bi-trash');
+                const editLink = event.target.closest('.edit-link');
+                const deleteLink = event.target.closest('.delete-link');
+                const upArrow = event.target.closest('.up-arrow');
+                const downArrow = event.target.closest('.down-arrow');
 
-                if (editIcon) {
+                if (editLink) {
                     event.preventDefault();
-                    const taskItem = editIcon.closest('li[data-id]');
-                    if (taskItem) {
-                        window.location.href = `./updateTask.html?id=${taskItem.dataset.id}`;
+                    const tarefaItem = editLink.closest('li[data-id]');
+                    if (tarefaItem) {
+                        showUpdateForm(tarefaItem.dataset.id);
                     }
-                } else if (deleteIcon) {
+                } else if (deleteLink) {
                     event.preventDefault();
-                    const taskItem = deleteIcon.closest('li[data-id]');
-                    if (taskItem && confirm("Are you sure you want to delete this task?")) {
-                        deleteTask(taskItem.dataset.id);
+                    const tarefaItem = deleteLink.closest('li[data-id]');
+                    if (tarefaItem && confirm("Are you sure you want to delete this tarefa?")) {
+                        deletarTarefa(tarefaItem.dataset.id);
                     }
+                } else if (upArrow){
+                    event.preventDefault();
+                    const tarefaItem = upArrow.closest('li[data-id]');
+                    if (tarefaItem) {
+                        sobeTarefa(tarefaItem.dataset.id);
+                    }
+                } else if (downArrow){
+                    event.preventDefault();
+                    const tarefaItem = downArrow.closest('li[data-id]');
+                    if (tarefaItem) {
+                        desceTarefa(tarefaItem.dataset.id);
                 }
+            }
             });
-        }
     }
 });

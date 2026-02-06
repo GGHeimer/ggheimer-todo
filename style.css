@@ -20,12 +20,6 @@ header {
     padding: 5px;
 }
 
-aside {
-    grid-area: aside;
-    text-align: center;
-    padding: 5px;
-}
-
 main {
     grid-area: main;
     margin-left: 1rem;
@@ -39,15 +33,6 @@ main {
     flex-wrap: wrap;
     align-content: center;
     justify-content: space-around;
-    
-    
-    /* & div{
-    border: 1px solid black;
-    border-radius: 1px;
-    padding: 5px;
-    min-width: 15em; 
-    min-height: 15em;
-    } */
 }
 
 .form {
@@ -74,7 +59,7 @@ footer {
     grid-template-columns: auto 1fr auto;
     grid-template-rows: auto 1fr auto;
     grid-template-areas: "header header header" 
-                         "aside main main" 
+                         "main main main" 
                          "footer footer footer";
     height: 100vh;
     width: 100vw;
@@ -83,6 +68,7 @@ footer {
 .card {
     display: flex;
     flex-direction: column;
+    max-height: 60vh;
 }
 
 .card-body {
